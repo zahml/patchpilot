@@ -110,14 +110,19 @@ async function evaluate(client, expression) {
 }
 
 let client
+let browserClient
 try {
   const port = await waitForDevToolsPort()
+  const versionResponse = await fetch(`http://127.0.0.1:${port}/json/version`)
+  if (!versionResponse.ok) throw new Error(`Chrome DevTools returned HTTP ${versionResponse.status}`)
+  const version = await versionResponse.json()
   const targetsResponse = await fetch(`http://127.0.0.1:${port}/json/list`)
   if (!targetsResponse.ok) throw new Error(`Chrome DevTools returned HTTP ${targetsResponse.status}`)
   const targets = await targetsResponse.json()
   const page = targets.find((target) => target.type === 'page' && target.url.startsWith(uiUrl))
   if (!page) throw new Error('Chrome did not open the PatchPilot page.')
 
+  browserClient = new DevToolsClient(version.webSocketDebuggerUrl)
   client = new DevToolsClient(page.webSocketDebuggerUrl)
   await client.send('Page.enable')
   await client.send('Runtime.enable')
@@ -179,14 +184,22 @@ try {
   console.log(`Browser E2E passed: ${title}`)
   console.log('Displayed completed review with HIGH NULL_DEREFERENCE at src/Account.java:2.')
 } finally {
+  if (browserClient) await browserClient.send('Browser.close').catch(() => {})
   client?.close()
+  browserClient?.close()
   if (chrome.exitCode === null) {
     chrome.kill('SIGTERM')
     await Promise.race([
       new Promise((resolve) => chrome.once('exit', resolve)),
       new Promise((resolve) => setTimeout(resolve, 3000)),
     ])
-    if (chrome.exitCode === null) chrome.kill('SIGKILL')
+    if (chrome.exitCode === null) {
+      chrome.kill('SIGKILL')
+      await Promise.race([
+        new Promise((resolve) => chrome.once('exit', resolve)),
+        new Promise((resolve) => setTimeout(resolve, 2000)),
+      ])
+    }
   }
-  rmSync(profile, { recursive: true, force: true })
+  rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
 }
