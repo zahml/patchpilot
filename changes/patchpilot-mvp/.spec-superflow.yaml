@@ -18,9 +18,9 @@ execution_mode: null
 execution_plan_hash: null
 execution_plan_revision: null
 batches_completed: 0
-test_result: null
-spec_merged: false
-spec_publication_receipt: null
+test_result: pass: "/Applications/Docker.app/Contents/Resources/bin/docker" compose config --quiet && PATCHPILOT_UI_URL=http://127.0.0.1:15173 node tools/e2e/browser-smoke.mjs && cd backend && ./mvnw --batch-mode --no-transfer-progress verify -Pintegration,prompt-eval && cd ../frontend && npm ci && npm test -- --run && npm run build && cd .. && node --check tools/e2e/mock-openai.mjs && node --check tools/e2e/browser-smoke.mjs && git diff --check
+spec_merged: true
+spec_publication_receipt: eyJ2ZXJzaW9uIjoxLCJzb3VyY2VfaGFzaCI6InNoYTI1NjpjYjU0NDVhOWJhOTIzOGQ1NjBkZWNkYjAxNTZiYmUwZDMzYjYzMGVlODJlNmYxZjMxZGQwNTk2MzQyNmRkYTJiIiwiYmFzZWxpbmVfYmVmb3JlX2hhc2giOiJzaGEyNTY6OWFlZjkzZTNlNzM0NWMwNmI5MTU2MTFiMjE3NzdiZWVjYzNiM2VhNjMzZDcyMmExMzA1ZTAyYTI3MTVhOTYxOCIsImJhc2VsaW5lX2FmdGVyX2hhc2giOiJzaGEyNTY6Nzc5OGI0MTllMzE4ZGNjZTJlMDdkNTg0MWE1OGMyZjYyOGU4OWNlNTk1ZmU3MDcyN2Y5MDVjODhhOTk2OTYxOCIsImNhcGFiaWxpdGllcyI6WyJyZXZpZXctbGlmZWN5Y2xlIl19
 
 # === Review anchor (recorded on the first entry into executing) ===
 review_base: e07063dfdd4fd202491cf1c5f428f3bcf081d017
