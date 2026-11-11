@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "description": "Synthetic, labeled code-review cases with deterministic offline response fixtures.",
+  "cases": [
+    {
+      "id": "null-dereference",
+      "diffText": "diff --git a/src/AccountService.java b/src/AccountService.java\n--- a/src/AccountService.java\n+++ b/src/AccountService.java\n@@ -1,2 +1,3 @@\n class AccountService {\n+    String normalized = accountName.trim();\n }",
+      "expected": [{ "ruleId": "NULL_DEREFERENCE", "severity": "HIGH" }],
+      "fixturePredictions": {
+        "v1": [{ "ruleId": "NULL_DEREFERENCE", "severity": "HIGH" }],
+        "v2": [{ "ruleId": "NULL_DEREFERENCE", "severity": "HIGH" }]
+      }
+    },
+    {
+      "id": "sql-concatenation",
+      "diffText": "diff --git a/src/UserRepository.java b/src/UserRepository.java\n--- a/src/UserRepository.java\n+++ b/src/UserRepository.java\n@@ -1,2 +1,3 @@\n class UserRepository {\n+    String sql = \"select * from users where name = '\" + name + \"'\";\n }",
+      "expected": [{ "ruleId": "SQL_INJECTION", "severity": "HIGH" }],
+      "fixturePredictions": {
+        "v1": [
+          { "ruleId": "SQL_INJECTION", "severity": "HIGH" },
+          { "ruleId": "INPUT_VALIDATION", "severity": "LOW" }
+        ],
+        "v2": [{ "ruleId": "SQL_INJECTION", "severity": "HIGH" }]
+      }
+    },
+    {
+      "id": "guarded-null-value",
+      "diffText": "diff --git a/src/AccountService.java b/src/AccountService.java\n--- a/src/AccountService.java\n+++ b/src/AccountService.java\n@@ -1,2 +1,4 @@\n class AccountService {\n+    if (accountName == null) return;\n+    return accountName.trim();\n }",
+      "expected": [],
+      "fixturePredictions": {
+        "v1": [{ "ruleId": "NULL_DEREFERENCE", "severity": "LOW" }],
+        "v2": []
+      }
+    },
+    {
+      "id": "formatting-only",
+      "diffText": "diff --git a/src/Formatter.java b/src/Formatter.java\n--- a/src/Formatter.java\n+++ b/src/Formatter.java\n@@ -1 +1 @@\n-return value;\n+return value ;",
+      "expected": [],
+      "fixturePredictions": {
+        "v1": [],
+        "v2": []
+      }
+    }
+  ]
+}

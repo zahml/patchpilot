@@ -1,0 +1,27 @@
+{
+  "mode": "inline",
+  "source": "approved-plan",
+  "rationale": "用户已确认按当前 MVP 范围逐项实施，并要求先完成 1.1 项目骨架及对应检查。",
+  "waves": [
+    {
+      "id": "implementation",
+      "strategy": "serial",
+      "tasks": [
+        "1.1",
+        "1.2",
+        "1.3",
+        "1.4",
+        "1.5",
+        "1.6"
+      ],
+      "depends_on": []
+    }
+  ],
+  "artifacts_hash": "sha256:c4df1a377883a6f1717960512ab2c145b34330d735a217d5f0d6f24fff53572d",
+  "contract_hash": null,
+  "workflow": "full",
+  "revision": 1,
+  "schema_version": 2,
+  "review_policy": "final",
+  "hash": "sha256:18f262a4134979b8f72b4de7b8de7f6ea023ac54848b782ede1921954a8d5a88"
+}

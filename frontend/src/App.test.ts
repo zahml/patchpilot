@@ -1,0 +1,151 @@
+import { flushPromises, mount } from '@vue/test-utils'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import App from './App.vue'
+import {
+  createReview,
+  getReview,
+  listReviewFindings,
+  listReviews,
+  ReviewApiError,
+  type ReviewDetail,
+  type ReviewFinding,
+  type ReviewListItem,
+} from './api/reviews'
+
+vi.mock('./api/reviews', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./api/reviews')>()
+  return {
+    ...actual,
+    createReview: vi.fn(),
+    getReview: vi.fn(),
+    listReviewFindings: vi.fn(),
+    listReviews: vi.fn(),
+  }
+})
+
+const review: ReviewListItem = {
+  id: 'review-1',
+  title: 'Guard account names',
+  status: 'COMPLETED',
+  createdAt: '2026-11-12T01:00:00Z',
+}
+
+const detail: ReviewDetail = {
+  ...review,
+  summary: 'A nullable account name can be dereferenced.',
+  startedAt: '2026-11-12T01:00:01Z',
+  completedAt: '2026-11-12T01:00:03Z',
+  promptVersion: 'v2',
+  failureCode: null,
+}
+
+const finding: ReviewFinding = {
+  id: 'finding-1',
+  severity: 'HIGH',
+  ruleId: 'NULL_DEREFERENCE',
+  filePath: 'src/Account.java',
+  lineStart: 14,
+  lineEnd: 14,
+  title: 'Possible null dereference',
+  explanation: 'The value may be null before trim is called.',
+  suggestion: 'Check the value before using it.',
+}
+
+describe('review workspace', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(listReviews).mockResolvedValue({ items: [review], nextCursor: null })
+    vi.mocked(getReview).mockResolvedValue(detail)
+    vi.mocked(listReviewFindings).mockResolvedValue({ items: [finding], nextCursor: null })
+  })
+
+  it('shows review progress and findings for a selected task', async () => {
+    const wrapper = mount(App)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('已完成')
+    expect(wrapper.text()).toContain('A nullable account name can be dereferenced.')
+    expect(wrapper.text()).toContain('Possible null dereference')
+    expect(wrapper.text()).toContain('src/Account.java')
+    expect(getReview).toHaveBeenCalledWith('review-1')
+    expect(listReviewFindings).toHaveBeenCalledWith('review-1')
+
+    wrapper.unmount()
+  })
+
+  it('submits a diff and opens the accepted review', async () => {
+    const created: ReviewListItem = {
+      id: 'review-2',
+      title: 'Handle empty account names',
+      status: 'QUEUED',
+      createdAt: '2026-11-12T02:00:00Z',
+    }
+    vi.mocked(listReviews)
+      .mockResolvedValueOnce({ items: [], nextCursor: null })
+      .mockResolvedValueOnce({ items: [created, review], nextCursor: null })
+    vi.mocked(createReview).mockResolvedValue(created)
+    vi.mocked(getReview).mockResolvedValue({
+      ...created,
+      summary: null,
+      startedAt: null,
+      completedAt: null,
+      promptVersion: null,
+      failureCode: null,
+    })
+    vi.mocked(listReviewFindings).mockResolvedValue({ items: [], nextCursor: null })
+
+    const wrapper = mount(App)
+    await flushPromises()
+    await wrapper.get('input[name="title"]').setValue('Handle empty account names')
+    await wrapper.get('textarea[name="diffText"]').setValue(
+      'diff --git a/Account.java b/Account.java\n--- a/Account.java\n+++ b/Account.java\n@@ -1 +1 @@\n-old\n+new',
+    )
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(createReview).toHaveBeenCalledWith({
+      title: 'Handle empty account names',
+      diffText: expect.stringContaining('diff --git'),
+      baseRef: null,
+      headRef: null,
+    })
+    expect(wrapper.text()).toContain('Handle empty account names')
+    expect(wrapper.text()).toContain('排队中')
+
+    wrapper.unmount()
+  })
+
+  it('keeps invalid submissions local and explains the missing diff', async () => {
+    const wrapper = mount(App)
+    await flushPromises()
+    await wrapper.get('input[name="title"]').setValue('Untitled change')
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.text()).toContain('请粘贴 unified diff。')
+    expect(createReview).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('shows the server retry delay when submission is rate limited', async () => {
+    vi.mocked(createReview).mockRejectedValue(new ReviewApiError(
+      'Review submission rate limit exceeded.',
+      429,
+      'rate_limit_exceeded',
+      'trace-1',
+      12,
+    ))
+
+    const wrapper = mount(App)
+    await flushPromises()
+    await wrapper.get('input[name="title"]').setValue('Handle empty account names')
+    await wrapper.get('textarea[name="diffText"]').setValue(
+      'diff --git a/Account.java b/Account.java\n--- a/Account.java\n+++ b/Account.java\n@@ -1 +1 @@\n-old\n+new',
+    )
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('请在 12 秒后重试。')
+    expect((wrapper.get('textarea[name="diffText"]').element as HTMLTextAreaElement).value).toContain('diff --git')
+    wrapper.unmount()
+  })
+})

@@ -1,0 +1,286 @@
+openapi: 3.1.0
+info:
+  title: PatchPilot Review API
+  version: 1.0.0
+  description: Submit unified diffs and inspect asynchronous code review results.
+servers:
+  - url: http://localhost:8080/api/v1
+paths:
+  /reviews:
+    post:
+      operationId: createReview
+      summary: Submit a diff for review
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          description: UUID reused only when retrying the same submission.
+          schema:
+            type: string
+            format: uuid
+        - in: header
+          name: X-Request-Id
+          required: false
+          description: Optional safe request identifier echoed in the response and error body.
+          schema:
+            type: string
+            pattern: '^[A-Za-z0-9._-]{1,64}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReviewRequest'
+      responses:
+        '202':
+          description: Review accepted and queued.
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri-reference
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewAccepted'
+        '400':
+          $ref: '#/components/responses/ApiError'
+        '409':
+          $ref: '#/components/responses/ApiError'
+        '413':
+          $ref: '#/components/responses/ApiError'
+        '429':
+          description: Review submission rate limit exceeded.
+          headers:
+            Retry-After:
+              description: Seconds until the current rate-limit window expires.
+              schema:
+                type: integer
+                minimum: 1
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '503':
+          $ref: '#/components/responses/ApiError'
+    get:
+      operationId: listReviews
+      summary: List reviews by creation time, newest first
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: A page of review summaries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewPage'
+        '400':
+          $ref: '#/components/responses/ApiError'
+  /reviews/{reviewId}:
+    parameters:
+      - in: path
+        name: reviewId
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getReview
+      summary: Get review status and result metadata
+      responses:
+        '200':
+          description: Review details. Submitted diff content is never returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewDetail'
+        '400':
+          $ref: '#/components/responses/ApiError'
+        '404':
+          $ref: '#/components/responses/ApiError'
+  /reviews/{reviewId}/findings:
+    parameters:
+      - in: path
+        name: reviewId
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: listReviewFindings
+      summary: List findings for a review
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: A page of findings; queued reviews have no findings yet.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FindingPage'
+        '400':
+          $ref: '#/components/responses/ApiError'
+        '404':
+          $ref: '#/components/responses/ApiError'
+components:
+  parameters:
+    Cursor:
+      in: query
+      name: cursor
+      required: false
+      schema:
+        type: string
+    Limit:
+      in: query
+      name: limit
+      required: false
+      description: Page size from 1 to 100; defaults to 20.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+  responses:
+    ApiError:
+      description: Stable error response.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+  schemas:
+    CreateReviewRequest:
+      type: object
+      additionalProperties: false
+      required: [title, diffText]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 160
+        diffText:
+          type: string
+          minLength: 1
+          description: Unified diff up to 200 KiB encoded as UTF-8.
+        baseRef:
+          type: [string, 'null']
+          maxLength: 255
+        headRef:
+          type: [string, 'null']
+          maxLength: 255
+    ReviewStatus:
+      type: string
+      enum: [QUEUED, RUNNING, COMPLETED, FAILED]
+    ReviewAccepted:
+      type: object
+      required: [id, title, status, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        status:
+          $ref: '#/components/schemas/ReviewStatus'
+        createdAt:
+          type: string
+          format: date-time
+    ReviewListItem:
+      $ref: '#/components/schemas/ReviewAccepted'
+    ReviewDetail:
+      type: object
+      required: [id, title, status, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        status:
+          $ref: '#/components/schemas/ReviewStatus'
+        summary:
+          type: [string, 'null']
+        createdAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: [string, 'null']
+          format: date-time
+        completedAt:
+          type: [string, 'null']
+          format: date-time
+        promptVersion:
+          type: [string, 'null']
+        failureCode:
+          type: [string, 'null']
+    Finding:
+      type: object
+      required: [id, severity, ruleId, filePath, lineStart, lineEnd, title, explanation]
+      properties:
+        id:
+          type: string
+          format: uuid
+        severity:
+          type: string
+          enum: [CRITICAL, HIGH, MEDIUM, LOW, INFO]
+        ruleId:
+          type: string
+        filePath:
+          type: string
+        lineStart:
+          type: integer
+          minimum: 1
+        lineEnd:
+          type: integer
+          minimum: 1
+        title:
+          type: string
+        explanation:
+          type: string
+        suggestion:
+          type: [string, 'null']
+    ReviewPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReviewListItem'
+        nextCursor:
+          type: [string, 'null']
+    FindingPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Finding'
+        nextCursor:
+          type: [string, 'null']
+    ApiError:
+      type: object
+      required: [type, title, status, detail, code, traceId]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        code:
+          type: string
+        traceId:
+          type: string
