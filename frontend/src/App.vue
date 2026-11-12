@@ -50,6 +50,7 @@ const diffBytes = computed(() => new TextEncoder().encode(diffText.value).length
 const activeReviews = computed(() => reviews.value.filter((review) => review.status === 'QUEUED' || review.status === 'RUNNING'))
 const completedCount = computed(() => reviews.value.filter((review) => review.status === 'COMPLETED').length)
 const selectedFindingCount = computed(() => findings.value.length)
+const hasSelectedDetail = computed(() => selectedReview.value?.id === selectedReviewId.value)
 
 let pollTimer: number | undefined
 let pollInProgress = false
@@ -222,8 +223,6 @@ async function loadSelectedReview(reviewId: string, quiet = false): Promise<void
 async function selectReview(reviewId: string): Promise<void> {
   if (selectedReviewId.value !== reviewId) {
     selectedReviewId.value = reviewId
-    selectedReview.value = null
-    findings.value = []
   }
   await loadSelectedReview(reviewId)
 }
@@ -524,24 +523,25 @@ onBeforeUnmount(() => {
               <button v-if="nextReviewCursor" class="load-more" type="button" @click="loadMoreReviews">加载更多任务</button>
             </section>
 
-            <section v-if="selectedReviewId" class="detail-section" aria-labelledby="detail-heading" aria-live="polite">
+            <section v-if="selectedReviewId" class="detail-section" aria-labelledby="detail-heading" aria-live="polite" :aria-busy="detailLoading">
               <div class="detail-topline">
                 <div>
                   <p class="detail-eyebrow">审查详情</p>
-                  <h2 id="detail-heading">{{ selectedReview?.title || '加载审查详情…' }}</h2>
+                  <h2 id="detail-heading">{{ hasSelectedDetail ? selectedReview?.title : detailError ? '审查详情加载失败' : '正在加载审查详情…' }}</h2>
                 </div>
-                <span v-if="selectedReview" class="status-label" :class="`status-label-${selectedReview.status.toLowerCase()}`">
+                <span v-if="hasSelectedDetail && selectedReview" class="status-label" :class="`status-label-${selectedReview.status.toLowerCase()}`">
                   <component :is="statusIcon(selectedReview.status)" :size="14" :class="{ spinning: selectedReview.status === 'RUNNING' }" aria-hidden="true" />
                   {{ statusLabels[selectedReview.status] }}
                 </span>
               </div>
 
-              <div v-if="detailLoading && !selectedReview" class="detail-loading" role="status">正在加载审查结果…</div>
-              <div v-else-if="detailError" class="inline-error" role="alert">
+              <div v-if="!selectedReview && detailLoading" class="detail-loading" role="status">正在加载审查结果…</div>
+              <div v-else-if="!selectedReview && detailError" class="inline-error" role="alert">
                 <AlertCircle :size="16" aria-hidden="true" /><span>{{ detailError }}</span>
                 <button class="text-button" type="button" @click="loadSelectedReview(selectedReviewId!)">重试</button>
               </div>
               <template v-else-if="selectedReview">
+                <div class="detail-content" :aria-hidden="!hasSelectedDetail">
                 <div class="detail-meta">
                   <span><Clock3 :size="14" aria-hidden="true" />创建于 {{ formatDate(selectedReview.createdAt) }}</span>
                   <span v-if="selectedReview.promptVersion">Prompt {{ selectedReview.promptVersion }}</span>
@@ -588,7 +588,19 @@ onBeforeUnmount(() => {
                   </div>
                   <button v-if="nextFindingCursor" class="load-more" type="button" @click="loadMoreFindings">加载更多发现</button>
                 </template>
+                </div>
               </template>
+              <div v-if="selectedReview && !hasSelectedDetail" class="detail-switch-overlay" role="status" aria-live="polite">
+                <template v-if="detailError">
+                  <AlertCircle :size="16" aria-hidden="true" />
+                  <span>加载失败，仍保留上一条详情。</span>
+                  <button class="text-button" type="button" @click="loadSelectedReview(selectedReviewId!)">重试</button>
+                </template>
+                <template v-else>
+                  <LoaderCircle :size="16" class="spinning" aria-hidden="true" />
+                  <span>正在加载所选审查…</span>
+                </template>
+              </div>
             </section>
             <div v-else class="detail-placeholder">
               <span class="placeholder-icon"><ArrowRight :size="18" aria-hidden="true" /></span>

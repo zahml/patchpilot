@@ -943,9 +943,32 @@ h1 {
 }
 
 .detail-section {
+  position: relative;
   margin-top: 25px;
   padding-top: 20px;
   border-top: 1px solid var(--border-strong);
+}
+
+.detail-switch-overlay {
+  position: absolute;
+  inset: 49px 0 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  background: rgba(246, 248, 246, 0.94);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.detail-switch-overlay svg {
+  flex: 0 0 auto;
+}
+
+.detail-switch-overlay .text-button {
+  flex: 0 0 auto;
 }
 
 .detail-topline {

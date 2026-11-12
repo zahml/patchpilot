@@ -97,6 +97,48 @@ describe('review workspace', () => {
     processWrapper.unmount()
   })
 
+  it('keeps the current detail in place while another history item loads', async () => {
+    const nextReview: ReviewListItem = {
+      id: 'review-2',
+      title: 'Next review',
+      status: 'COMPLETED',
+      createdAt: '2026-11-12T02:00:00Z',
+    }
+    const nextDetail: ReviewDetail = {
+      ...nextReview,
+      summary: '新记录的审查摘要。',
+      startedAt: '2026-11-12T02:00:01Z',
+      completedAt: '2026-11-12T02:00:03Z',
+      promptVersion: 'v2',
+      failureCode: null,
+    }
+    let resolveNextDetail!: (value: ReviewDetail) => void
+    const pendingDetail = new Promise<ReviewDetail>((resolve) => {
+      resolveNextDetail = resolve
+    })
+
+    vi.mocked(listReviews).mockResolvedValue({ items: [review, nextReview], nextCursor: null })
+    vi.mocked(getReview).mockImplementation((reviewId) =>
+      reviewId === nextReview.id ? pendingDetail : Promise.resolve(detail),
+    )
+    vi.mocked(listReviewFindings).mockResolvedValue({ items: [finding], nextCursor: null })
+
+    const wrapper = mount(App)
+    await flushPromises()
+    expect(wrapper.text()).toContain(detail.summary!)
+
+    await wrapper.findAll('.review-row')[1].trigger('click')
+
+    expect(wrapper.text()).toContain(detail.summary!)
+    expect(wrapper.text()).toContain('正在加载所选审查')
+
+    resolveNextDetail(nextDetail)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('新记录的审查摘要。')
+    wrapper.unmount()
+  })
+
   it('submits a diff and opens the accepted review', async () => {
     const created: ReviewListItem = {
       id: 'review-2',
