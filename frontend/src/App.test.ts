@@ -32,7 +32,7 @@ const review: ReviewListItem = {
 
 const detail: ReviewDetail = {
   ...review,
-  summary: 'A nullable account name can be dereferenced.',
+  summary: '账户名称可能为空，直接调用方法会导致空指针异常。',
   startedAt: '2026-11-12T01:00:01Z',
   completedAt: '2026-11-12T01:00:03Z',
   promptVersion: 'v2',
@@ -46,9 +46,9 @@ const finding: ReviewFinding = {
   filePath: 'src/Account.java',
   lineStart: 14,
   lineEnd: 14,
-  title: 'Possible null dereference',
-  explanation: 'The value may be null before trim is called.',
-  suggestion: 'Check the value before using it.',
+  title: '可能发生空指针异常',
+  explanation: '调用 trim 前，该值可能为空。',
+  suggestion: '使用前先检查该值是否为空。',
 }
 
 describe('review workspace', () => {
@@ -64,8 +64,10 @@ describe('review workspace', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('已完成')
-    expect(wrapper.text()).toContain('A nullable account name can be dereferenced.')
-    expect(wrapper.text()).toContain('Possible null dereference')
+    expect(wrapper.text()).toContain('账户名称可能为空，直接调用方法会导致空指针异常。')
+    expect(wrapper.text()).toContain('可能发生空指针异常')
+    expect(wrapper.get('.severity-label').text()).toBe('高')
+    expect(wrapper.get('.finding-topline code').text()).toBe('空指针解引用')
     expect(wrapper.text()).toContain('src/Account.java')
     expect(getReview).toHaveBeenCalledWith('review-1')
     expect(listReviewFindings).toHaveBeenCalledWith('review-1')

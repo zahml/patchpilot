@@ -59,6 +59,21 @@ const statusLabels: Record<ReviewStatus, string> = {
   COMPLETED: '已完成',
   FAILED: '失败',
 }
+const severityLabels: Record<ReviewFinding['severity'], string> = {
+  CRITICAL: '严重',
+  HIGH: '高',
+  MEDIUM: '中',
+  LOW: '低',
+  INFO: '提示',
+}
+const ruleLabels: Record<string, string> = {
+  NULL_DEREFERENCE: '空指针解引用',
+  SQL_INJECTION: 'SQL 注入',
+}
+
+function ruleLabel(ruleId: string): string {
+  return ruleLabels[ruleId] || ruleId
+}
 
 function errorMessage(error: unknown): string {
   if (error instanceof ReviewApiError && error.code === 'rate_limit_exceeded') {
@@ -452,8 +467,8 @@ onBeforeUnmount(() => {
                   <div v-else class="finding-list">
                     <article v-for="finding in findings" :key="finding.id" class="finding-item">
                       <div class="finding-topline">
-                        <span class="severity-label" :class="`severity-${finding.severity.toLowerCase()}`">{{ finding.severity }}</span>
-                        <code>{{ finding.ruleId }}</code>
+                        <span class="severity-label" :class="`severity-${finding.severity.toLowerCase()}`">{{ severityLabels[finding.severity] }}</span>
+                        <code :title="finding.ruleId">{{ ruleLabel(finding.ruleId) }}</code>
                       </div>
                       <h4>{{ finding.title }}</h4>
                       <p class="finding-location"><FileCode2 :size="14" aria-hidden="true" /><code>{{ finding.filePath }}</code><span>行 {{ finding.lineStart }}–{{ finding.lineEnd }}</span></p>

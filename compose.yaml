@@ -43,6 +43,9 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      args:
+        JDK_IMAGE: ${PATCHPILOT_JDK_IMAGE:-eclipse-temurin:21-jdk-alpine}
+        JRE_IMAGE: ${PATCHPILOT_JRE_IMAGE:-eclipse-temurin:21-jre-alpine}
     environment:
       SERVER_PORT: 8080
       DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-patchpilot}
@@ -59,7 +62,7 @@ services:
       PATCHPILOT_RATE_LIMIT_REQUESTS: ${PATCHPILOT_RATE_LIMIT_REQUESTS:-10}
       PATCHPILOT_RATE_LIMIT_WINDOW_MS: ${PATCHPILOT_RATE_LIMIT_WINDOW_MS:-60000}
       PATCHPILOT_MODEL_PROVIDER: ${PATCHPILOT_MODEL_PROVIDER:-offline}
-      PATCHPILOT_MODEL_PROMPT_VERSION: ${PATCHPILOT_MODEL_PROMPT_VERSION:-v2}
+      PATCHPILOT_MODEL_PROMPT_VERSION: ${PATCHPILOT_MODEL_PROMPT_VERSION:-v3}
       PATCHPILOT_OPENAI_BASE_URL: ${PATCHPILOT_OPENAI_BASE_URL:-https://api.openai.com/v1}
       PATCHPILOT_OPENAI_API_KEY: ${PATCHPILOT_OPENAI_API_KEY:-}
       PATCHPILOT_OPENAI_MODEL: ${PATCHPILOT_OPENAI_MODEL:-gpt-4o-mini}
@@ -86,6 +89,8 @@ services:
   frontend:
     build:
       context: ./frontend
+      args:
+        NODE_IMAGE: ${PATCHPILOT_NODE_IMAGE:-node:22-alpine}
     environment:
       VITE_API_TARGET: http://backend:8080
     ports:

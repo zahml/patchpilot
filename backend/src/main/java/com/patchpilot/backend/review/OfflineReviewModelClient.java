@@ -12,7 +12,7 @@ public class OfflineReviewModelClient implements ReviewModelClient {
 	@Override
 	public ReviewAnalysis analyze(ReviewModelRequest request) {
 		return new ReviewAnalysis(
-				"Offline review completed without semantic model analysis. Configure the OpenAI-compatible provider for code findings.",
+				"离线审查已完成，但未进行语义分析。配置 OpenAI 兼容模型服务后即可获取代码审查发现。",
 				List.of());
 	}
 }

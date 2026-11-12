@@ -26,6 +26,7 @@ class PromptEvaluationTest {
 		ReviewPromptCatalog promptCatalog = new ReviewPromptCatalog(new DefaultResourceLoader());
 		assertThat(promptCatalog.get("v1")).contains("PatchPilot Review Prompt V1");
 		assertThat(promptCatalog.get("v2")).contains("PatchPilot Review Prompt V2");
+		assertThat(promptCatalog.get("v3")).contains("简体中文");
 
 		JsonNode dataset;
 		try (InputStream input = getClass().getResourceAsStream("/eval-fixtures/cases.json")) {

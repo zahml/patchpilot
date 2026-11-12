@@ -44,6 +44,22 @@ describe('review API client', () => {
     expect(JSON.parse(String(init?.body))).toEqual({ title: 'Title', diffText: 'diff' })
   })
 
+  it('falls back to getRandomValues when randomUUID is unavailable', async () => {
+    const getRandomValues = vi.fn((bytes: Uint8Array) => {
+      bytes.fill(7)
+      return bytes
+    })
+    vi.stubGlobal('crypto', { getRandomValues })
+    vi.mocked(fetch).mockResolvedValue(response({ items: [], nextCursor: null }))
+
+    await listReviews()
+
+    const [, init] = vi.mocked(fetch).mock.calls[0]!
+    const requestId = new Headers(init?.headers).get('X-Request-Id')
+    expect(requestId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+    expect(getRandomValues).toHaveBeenCalledOnce()
+  })
+
   it('preserves rate limit details for the interface', async () => {
     vi.mocked(fetch).mockResolvedValue(response({
       type: 'about:blank',
