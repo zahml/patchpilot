@@ -325,7 +325,7 @@ h1 {
 .usage-command {
   min-height: 36px;
   display: grid;
-  grid-template-columns: 64px minmax(0, 1fr) 28px;
+  grid-template-columns: max-content minmax(0, 1fr) 28px;
   align-items: center;
   gap: 6px;
   margin: 6px 0;
