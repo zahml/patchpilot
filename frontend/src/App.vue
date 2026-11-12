@@ -6,6 +6,7 @@ import {
   Check,
   CircleCheck,
   Clock3,
+  Copy,
   FileCode2,
   GitBranch,
   GitPullRequest,
@@ -27,6 +28,10 @@ import {
 } from './api/reviews'
 
 const MAX_DIFF_BYTES = 200 * 1024
+const DIFF_COPY_COMMANDS = [
+  { platform: 'macOS', command: 'git diff HEAD | pbcopy' },
+  { platform: 'Windows PowerShell', command: 'git diff HEAD | Set-Clipboard' },
+]
 const currentPage = ref<'reviews' | 'process'>(window.location.hash === '#/process' ? 'process' : 'reviews')
 const reviews = ref<ReviewListItem[]>([])
 const nextReviewCursor = ref<string | null>(null)
@@ -46,6 +51,8 @@ const diffText = ref('')
 const baseRef = ref('')
 const headRef = ref('')
 const fieldErrors = reactive({ title: '', diffText: '' })
+const copiedCommand = ref<string | null>(null)
+const copyCommandError = ref('')
 const diffBytes = computed(() => new TextEncoder().encode(diffText.value).length)
 const activeReviews = computed(() => reviews.value.filter((review) => review.status === 'QUEUED' || review.status === 'RUNNING'))
 const completedCount = computed(() => reviews.value.filter((review) => review.status === 'COMPLETED').length)
@@ -53,6 +60,7 @@ const selectedFindingCount = computed(() => findings.value.length)
 const hasSelectedDetail = computed(() => selectedReview.value?.id === selectedReviewId.value)
 
 let pollTimer: number | undefined
+let copyFeedbackTimer: number | undefined
 let pollInProgress = false
 
 const statusLabels: Record<ReviewStatus, string> = {
@@ -161,6 +169,22 @@ function formatDate(value: string): string {
 
 function formatBytes(bytes: number): string {
   return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`
+}
+
+async function copyDiffCommand(command: string): Promise<void> {
+  copyCommandError.value = ''
+  try {
+    await navigator.clipboard.writeText(command)
+    copiedCommand.value = command
+    if (copyFeedbackTimer !== undefined) window.clearTimeout(copyFeedbackTimer)
+    copyFeedbackTimer = window.setTimeout(() => {
+      copiedCommand.value = null
+      copyFeedbackTimer = undefined
+    }, 1800)
+  } catch {
+    copiedCommand.value = null
+    copyCommandError.value = '无法访问剪贴板，请手动复制命令。'
+  }
 }
 
 async function refreshReviews(quiet = false): Promise<void> {
@@ -303,6 +327,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   window.removeEventListener('hashchange', syncCurrentPage)
   if (pollTimer !== undefined) window.clearInterval(pollTimer)
+  if (copyFeedbackTimer !== undefined) window.clearTimeout(copyFeedbackTimer)
 })
 </script>
 
@@ -367,7 +392,22 @@ onBeforeUnmount(() => {
               <span class="usage-step-index">01</span>
               <div>
                 <h3>从 Git 生成改动</h3>
-                <p>在项目仓库运行 <code>git diff HEAD</code>，复制输出。新建文件先运行 <code>git add -N 文件路径</code>。</p>
+                <div v-for="diffCommand in DIFF_COPY_COMMANDS" :key="diffCommand.platform" class="usage-command">
+                  <span class="usage-command-platform">{{ diffCommand.platform }}</span>
+                  <code>{{ diffCommand.command }}</code>
+                  <button
+                    class="usage-command-copy"
+                    type="button"
+                    :aria-label="copiedCommand === diffCommand.command ? `已复制 ${diffCommand.platform} 命令` : `复制 ${diffCommand.platform} 命令`"
+                    :title="copiedCommand === diffCommand.command ? '已复制' : '复制命令'"
+                    @click="copyDiffCommand(diffCommand.command)"
+                  >
+                    <Check v-if="copiedCommand === diffCommand.command" :size="15" aria-hidden="true" />
+                    <Copy v-else :size="15" aria-hidden="true" />
+                  </button>
+                </div>
+                <p>在目标项目仓库对应的终端运行，改动会复制到剪贴板。新建文件先运行 <code>git add -N 文件路径</code>。</p>
+                <p v-if="copyCommandError" class="usage-command-error" role="alert">{{ copyCommandError }}</p>
               </div>
             </li>
             <li>

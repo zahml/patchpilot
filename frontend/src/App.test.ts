@@ -1,5 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App.vue'
 import {
   createReview,
@@ -52,6 +52,10 @@ const finding: ReviewFinding = {
 }
 
 describe('review workspace', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     window.location.hash = ''
@@ -82,7 +86,10 @@ describe('review workspace', () => {
 
     expect(reviewWrapper.text()).toContain('三步完成一次代码审查')
     expect(reviewWrapper.text()).toContain('不会自动读取本地仓库')
-    expect(reviewWrapper.text()).toContain('git diff HEAD')
+    expect(reviewWrapper.text()).toContain('git diff HEAD | pbcopy')
+    expect(reviewWrapper.text()).toContain('git diff HEAD | Set-Clipboard')
+    expect(reviewWrapper.findAll('button[aria-label="复制 macOS 命令"]')).toHaveLength(1)
+    expect(reviewWrapper.findAll('button[aria-label="复制 Windows PowerShell 命令"]')).toHaveLength(1)
     expect(reviewWrapper.findAll('a[href="#/process"]')).toHaveLength(1)
     reviewWrapper.unmount()
 
@@ -95,6 +102,20 @@ describe('review workspace', () => {
     expect(processWrapper.findAll('.process-figure img').every((image) => image.attributes('alt'))).toBe(true)
     expect(processWrapper.findAll('.nav-item[href="#/reviews"]')).toHaveLength(1)
     processWrapper.unmount()
+  })
+
+  it('copies the selected platform diff command to the clipboard', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', { clipboard: { writeText } })
+
+    const wrapper = mount(App)
+    await flushPromises()
+    await wrapper.get('button[aria-label="复制 Windows PowerShell 命令"]').trigger('click')
+    await flushPromises()
+
+    expect(writeText).toHaveBeenCalledWith('git diff HEAD | Set-Clipboard')
+    expect(wrapper.findAll('button[aria-label="已复制 Windows PowerShell 命令"]')).toHaveLength(1)
+    wrapper.unmount()
   })
 
   it('keeps the current detail in place while another history item loads', async () => {
