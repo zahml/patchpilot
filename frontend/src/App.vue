@@ -27,6 +27,7 @@ import {
 } from './api/reviews'
 
 const MAX_DIFF_BYTES = 200 * 1024
+const currentPage = ref<'reviews' | 'process'>(window.location.hash === '#/process' ? 'process' : 'reviews')
 const reviews = ref<ReviewListItem[]>([])
 const nextReviewCursor = ref<string | null>(null)
 const listLoading = ref(true)
@@ -70,6 +71,71 @@ const ruleLabels: Record<string, string> = {
   NULL_DEREFERENCE: '空指针解引用',
   SQL_INJECTION: 'SQL 注入',
 }
+const projectStages = [
+  {
+    phase: '项目规划',
+    title: '明确目标与实施路线',
+    summary: '把项目目标、技术选型、交付边界和分阶段计划整理成可执行的开发任务。',
+    image: '/project-process/00-project-plan.png',
+    alt: 'PatchPilot 项目目标、技术选型与分阶段计划的提示词记录',
+    width: 1600,
+    height: 1150,
+  },
+  {
+    phase: '阶段 1.1',
+    title: '搭建工程骨架与运行环境',
+    summary: '建立前后端基础结构和 Compose 运行方式，并核对本地环境与启动条件。',
+    image: '/project-process/01-foundation.png',
+    alt: '搭建 PatchPilot 项目骨架和检查运行环境的过程截图',
+    width: 1542,
+    height: 1000,
+  },
+  {
+    phase: '阶段 1.2',
+    title: '定义 API 与数据持久化',
+    summary: '梳理 REST API 契约、审查任务数据模型、持久化边界和验证方式。',
+    image: '/project-process/02-api-and-persistence.png',
+    alt: '设计 REST API、任务数据持久化与验证方式的过程截图',
+    width: 1562,
+    height: 762,
+  },
+  {
+    phase: '阶段 1.3',
+    title: '处理异步任务与提交限流',
+    summary: '用 RabbitMQ 解耦任务提交和执行，用 Redis 限制提交频率，并考虑并发与重试。',
+    image: '/project-process/03-async-jobs-and-limits.png',
+    alt: '实现 RabbitMQ 异步处理、Redis 限流和重试机制的过程截图',
+    width: 1538,
+    height: 826,
+  },
+  {
+    phase: '阶段 1.4',
+    title: '接入模型并迭代提示词',
+    summary: '接入兼容模型接口，区分提示词版本，并准备可重复运行的评测样例。',
+    image: '/project-process/04-model-and-prompts.png',
+    alt: '接入模型接口、迭代提示词版本和准备评测样例的过程截图',
+    width: 1520,
+    height: 812,
+  },
+  {
+    phase: '阶段 1.5',
+    title: '完成前端提交与结果展示',
+    summary: '实现 diff 提交、任务状态刷新、审查摘要和问题列表的前端交互。',
+    image: '/project-process/05-frontend.png',
+    alt: '实现前端 diff 提交、轮询进度和审查结果展示的过程截图',
+    width: 1504,
+    height: 758,
+  },
+  {
+    phase: '阶段 1.6',
+    title: '贯通流程并验证交付',
+    summary: '验证端到端处理链路，整理项目文档，并明确真实模型调用的数据边界。',
+    image: '/project-process/06-e2e-and-release.png',
+    alt: '端到端验证、完善 README 和确认真实模型调用边界的过程截图',
+    width: 1528,
+    height: 950,
+  },
+]
 
 function ruleLabel(ruleId: string): string {
   return ruleLabels[ruleId] || ruleId
@@ -216,7 +282,12 @@ function statusIcon(status: ReviewStatus) {
   return Clock3
 }
 
+function syncCurrentPage(): void {
+  currentPage.value = window.location.hash === '#/process' ? 'process' : 'reviews'
+}
+
 onMounted(async () => {
+  window.addEventListener('hashchange', syncCurrentPage)
   await refreshReviews()
   pollTimer = window.setInterval(async () => {
     if (pollInProgress || activeReviews.value.length === 0) return
@@ -231,6 +302,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('hashchange', syncCurrentPage)
   if (pollTimer !== undefined) window.clearInterval(pollTimer)
 })
 </script>
@@ -238,7 +310,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="app-shell">
     <header class="topbar">
-      <a class="brand" href="/" aria-label="PatchPilot 首页">
+      <a class="brand" href="#/reviews" aria-label="PatchPilot 代码审查">
         <span class="brand-mark" aria-hidden="true"><GitPullRequest :size="17" /></span>
         <span class="brand-name">PatchPilot</span>
       </a>
@@ -251,12 +323,16 @@ onBeforeUnmount(() => {
     <div class="workspace-layout">
       <aside class="sidebar" aria-label="主导航">
         <p class="sidebar-label">工作区</p>
-        <a class="nav-item nav-item-active" href="/" aria-current="page">
+        <a class="nav-item" :class="{ 'nav-item-active': currentPage === 'reviews' }" href="#/reviews" :aria-current="currentPage === 'reviews' ? 'page' : undefined">
           <GitPullRequest :size="16" aria-hidden="true" />
           <span>代码审查</span>
         </a>
+        <a class="nav-item" :class="{ 'nav-item-active': currentPage === 'process' }" href="#/process" :aria-current="currentPage === 'process' ? 'page' : undefined">
+          <FileCode2 :size="16" aria-hidden="true" />
+          <span>开发过程</span>
+        </a>
         <div class="sidebar-summary" aria-label="审查统计">
-          <p class="sidebar-label">本页概览</p>
+          <p class="sidebar-label">审查概览</p>
           <div class="summary-line"><span>处理中</span><strong>{{ activeReviews.length }}</strong></div>
           <div class="summary-line"><span>已完成</span><strong>{{ completedCount }}</strong></div>
         </div>
@@ -266,7 +342,7 @@ onBeforeUnmount(() => {
         </div>
       </aside>
 
-      <main class="workspace">
+      <main v-if="currentPage === 'reviews'" class="workspace">
         <div class="page-heading">
           <div>
             <p class="breadcrumb">工作区 <span>/</span> 代码审查</p>
@@ -278,6 +354,40 @@ onBeforeUnmount(() => {
             <span>刷新</span>
           </button>
         </div>
+
+        <section class="usage-guide" aria-labelledby="usage-heading">
+          <div class="usage-guide-heading">
+            <div>
+              <p class="detail-eyebrow">快速开始</p>
+              <h2 id="usage-heading">三步完成一次代码审查</h2>
+            </div>
+            <span class="usage-guide-count">约 1 分钟</span>
+          </div>
+          <ol class="usage-steps">
+            <li>
+              <span class="usage-step-index">01</span>
+              <div>
+                <h3>从 Git 生成改动</h3>
+                <p>在项目仓库运行 <code>git diff HEAD</code>，复制输出。新建文件先运行 <code>git add -N 文件路径</code>。</p>
+              </div>
+            </li>
+            <li>
+              <span class="usage-step-index">02</span>
+              <div>
+                <h3>填写标题并粘贴</h3>
+                <p>填写审查标题，把完整 diff 粘贴到输入框；分支信息可以留空。</p>
+              </div>
+            </li>
+            <li>
+              <span class="usage-step-index">03</span>
+              <div>
+                <h3>查看进度和发现</h3>
+                <p>提交后在右侧选中任务。状态自动刷新，完成后查看摘要、代码位置和修改建议。</p>
+              </div>
+            </li>
+          </ol>
+          <p class="usage-guide-note"><ShieldAlert :size="15" aria-hidden="true" />这里只处理你粘贴的 diff，不会自动读取本地仓库。启用真实模型时，标题、diff 和可选分支名会发送到你配置的模型服务；离线模式不会调用外部模型。</p>
+        </section>
 
         <div class="dashboard-grid">
           <section class="submission-section" aria-labelledby="submit-heading">
@@ -331,7 +441,7 @@ onBeforeUnmount(() => {
                   @input="fieldErrors.diffText = ''"
                 ></textarea>
                 <p id="diff-error" v-if="fieldErrors.diffText" class="field-error">{{ fieldErrors.diffText }}</p>
-                <p id="diff-help" v-else class="field-help">提交后 diff 会发送到后端；配置 OpenAI 兼容服务时才会发送到模型。</p>
+                <p id="diff-help" v-else class="field-help">最多 200 KiB。内容先发送到本项目后端；是否发送到模型取决于当前模型配置。</p>
               </div>
 
               <details class="refs-details">
@@ -486,6 +596,47 @@ onBeforeUnmount(() => {
             </div>
           </div>
         </div>
+      </main>
+
+      <main v-else class="workspace process-workspace">
+        <div class="page-heading process-page-heading">
+          <div>
+            <p class="breadcrumb">工作区 <span>/</span> 开发过程</p>
+            <h1>开发过程与提示词</h1>
+            <p class="page-description">按阶段回看需求拆解、系统实现、模型接入和交付验证的提示词记录。</p>
+          </div>
+        </div>
+
+        <section class="process-intro" aria-label="项目过程说明">
+          <div class="process-intro-mark"><GitPullRequest :size="19" aria-hidden="true" /></div>
+          <div>
+            <h2>从想法到可演示的异步 AI 代码审查</h2>
+            <p>这些截图保留了项目实施时的阶段任务描述和验证过程。点击任意截图可在新标签页查看原图，阅读完整提示词。</p>
+          </div>
+          <span class="process-stage-total">{{ projectStages.length }} 个阶段</span>
+        </section>
+
+        <section class="process-timeline" aria-label="项目提示词与实现阶段">
+          <article v-for="(stage, index) in projectStages" :key="stage.phase" class="process-stage">
+            <div class="stage-marker" aria-hidden="true"><span>{{ String(index + 1).padStart(2, '0') }}</span></div>
+            <div class="process-stage-content">
+              <div class="process-stage-heading">
+                <div>
+                  <p class="process-phase">{{ stage.phase }}</p>
+                  <h2>{{ stage.title }}</h2>
+                </div>
+                <a class="stage-open-link" :href="stage.image" target="_blank" rel="noopener noreferrer">查看原图 <ArrowRight :size="14" aria-hidden="true" /></a>
+              </div>
+              <p class="process-stage-summary">{{ stage.summary }}</p>
+              <figure class="process-figure">
+                <a :href="stage.image" target="_blank" rel="noopener noreferrer" :aria-label="`在新标签页查看：${stage.alt}`">
+                  <img :src="stage.image" :alt="stage.alt" :loading="index === 0 ? 'eager' : 'lazy'" :width="stage.width" :height="stage.height" />
+                </a>
+                <figcaption>阶段 {{ String(index + 1).padStart(2, '0') }} · {{ stage.phase }} · 提示词与过程记录</figcaption>
+              </figure>
+            </div>
+          </article>
+        </section>
       </main>
     </div>
   </div>

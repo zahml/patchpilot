@@ -54,6 +54,7 @@ const finding: ReviewFinding = {
 describe('review workspace', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    window.location.hash = ''
     vi.mocked(listReviews).mockResolvedValue({ items: [review], nextCursor: null })
     vi.mocked(getReview).mockResolvedValue(detail)
     vi.mocked(listReviewFindings).mockResolvedValue({ items: [finding], nextCursor: null })
@@ -73,6 +74,27 @@ describe('review workspace', () => {
     expect(listReviewFindings).toHaveBeenCalledWith('review-1')
 
     wrapper.unmount()
+  })
+
+  it('explains the review flow and renders the prompt process page', async () => {
+    const reviewWrapper = mount(App)
+    await flushPromises()
+
+    expect(reviewWrapper.text()).toContain('三步完成一次代码审查')
+    expect(reviewWrapper.text()).toContain('不会自动读取本地仓库')
+    expect(reviewWrapper.text()).toContain('git diff HEAD')
+    expect(reviewWrapper.findAll('a[href="#/process"]')).toHaveLength(1)
+    reviewWrapper.unmount()
+
+    window.location.hash = '#/process'
+    const processWrapper = mount(App)
+    await flushPromises()
+
+    expect(processWrapper.get('h1').text()).toBe('开发过程与提示词')
+    expect(processWrapper.findAll('.process-figure img')).toHaveLength(7)
+    expect(processWrapper.findAll('.process-figure img').every((image) => image.attributes('alt'))).toBe(true)
+    expect(processWrapper.findAll('.nav-item[href="#/reviews"]')).toHaveLength(1)
+    processWrapper.unmount()
   })
 
   it('submits a diff and opens the accepted review', async () => {

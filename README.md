@@ -1,43 +1,76 @@
 # PatchPilot
 
-PatchPilot is a local AI code review workspace. Submit a unified diff, follow its asynchronous review status, and inspect the summary and findings in the Vue interface. The backend stores reviews in PostgreSQL, dispatches work through RabbitMQ, and uses Redis for submission rate limiting.
+PatchPilot 是一个 AI 代码审查演示项目。使用者提交 unified diff，系统异步处理审查任务，并展示审查摘要、问题位置和修改建议。项目使用 PostgreSQL 保存任务，RabbitMQ 分发异步任务，Redis 限制提交频率。
 
-## Requirements
+当前前端接收的是**手动粘贴的 diff**，不会自动读取你的电脑或 Git 仓库。前端的“开发过程”页面展示了项目实施时的阶段提示词和验证截图，可用于演示项目的实现过程。
+
+## 使用方式
+
+1. 在你要审查的项目仓库生成改动。查看已跟踪文件的暂存与未暂存修改：
+
+   ```sh
+   git diff HEAD
+   ```
+
+   Git 默认不会把新建的未跟踪文件放进 diff；需要时先执行 `git add -N 文件路径`，再运行上面的命令。
+
+2. 复制命令输出，在 PatchPilot 的“代码审查”页填写标题并粘贴到 Unified diff 输入框。分支信息可以不填，单次 diff 上限为 200 KiB。
+
+3. 点击“提交审查”。任务会显示在右侧列表中；排队和审查状态会自动刷新。选中任务后可查看摘要、问题级别、文件行号和修改建议。
+
+模型默认使用离线模式：流程可以跑通，但不会调用 AI，结果会注明没有进行语义分析。启用真实模型服务后，审查标题、diff 和填写的分支信息会发送到配置的模型接口。请勿提交密钥、`.env`、个人数据或不应发送给模型服务的代码。
+
+## 环境要求
 
 - Java 21
-- Node.js 22.12 or newer
-- Docker Desktop with Docker Compose v2
+- Node.js 22.12 或更新版本
+- Docker Desktop 和 Docker Compose v2
 
-## Start the full stack
+## 启动完整项目
+
+在项目根目录运行：
 
 ```sh
 cp .env.example .env
 docker compose up --build
 ```
 
-Open <http://localhost:5173>. The backend health endpoint is <http://localhost:8080/actuator/health>. PostgreSQL, RabbitMQ, and Redis use ports 5432, 5672, and 6379; RabbitMQ management is at <http://localhost:15672>.
+打开 <http://localhost:5173>。开发过程页面地址为 <http://localhost:5173/#/process>。后端健康检查地址为 <http://localhost:8080/actuator/health>。
 
-Compose uses local-development defaults when `.env` is absent. The credentials in `.env.example` are for local use only. Do not expose this stack to an untrusted network or reuse these values elsewhere.
+PostgreSQL、RabbitMQ 和 Redis 分别使用 5432、5672 和 6379 端口；RabbitMQ 管理页面在 <http://localhost:15672>。如端口冲突，可修改 `.env` 中对应的端口。
 
-The default `PATCHPILOT_MODEL_PROVIDER=offline` completes a review without calling an external model. Its summary says semantic analysis was not performed, and it returns no findings. Configure an OpenAI-compatible provider to run actual model analysis; the submitted diff, title, and optional refs are then sent to that provider.
+Compose 在没有 `.env` 时也会采用本地开发默认值。`.env.example` 中的数据库和 RabbitMQ 密码仅供本机开发；不要将这些默认值用于公开服务器。
 
-## Run the review flow locally
+### 配置真实模型
 
-This mode runs PostgreSQL, RabbitMQ, and Redis in Docker, with the Java backend and Vite development server on the host. It is also useful when Docker cannot download the Node or Temurin build images.
+如需进行真实 AI 审查，在 `.env` 中设置兼容 OpenAI API 的服务地址、密钥和模型名称：
 
-Start the infrastructure services in one terminal:
+```dotenv
+PATCHPILOT_MODEL_PROVIDER=openai
+PATCHPILOT_OPENAI_BASE_URL=https://api.openai.com/v1
+PATCHPILOT_OPENAI_API_KEY=填入你自己的密钥
+PATCHPILOT_OPENAI_MODEL=gpt-4o-mini
+```
+
+保存后重启服务。也可以保持 `PATCHPILOT_MODEL_PROVIDER=offline`，使用不调用外部模型的本地模式。请把真实密钥保存在未跟踪的 `.env` 或环境变量中，不要提交到 Git。
+
+## 本地端到端演示
+
+以下方式在 Docker 中运行 PostgreSQL、RabbitMQ 和 Redis，在本机分别运行后端、前端与确定性模型模拟器。模拟器只接受文档中的测试 diff，并返回固定结果；它不会访问网络，也不代表真实模型效果。
+
+先启动基础服务：
 
 ```sh
 docker compose up -d postgres rabbitmq redis
 ```
 
-Start the deterministic local model stub in another terminal. It accepts only the documented fixture diff and returns a fixed result; it makes no network calls and is not a production model.
+在单独终端启动本地模型模拟器：
 
 ```sh
 node tools/e2e/mock-openai.mjs
 ```
 
-Start the backend in another terminal. These values match `.env.example`; update the connection values if you changed that file.
+在另一个终端启动后端：
 
 ```sh
 cd backend
@@ -57,7 +90,7 @@ PATCHPILOT_OPENAI_API_KEY=local-e2e-only \
 ./mvnw spring-boot:run
 ```
 
-Start the UI in a fourth terminal:
+再开一个终端启动前端：
 
 ```sh
 cd frontend
@@ -65,7 +98,7 @@ npm ci
 VITE_API_TARGET=http://127.0.0.1:8080 npm run dev
 ```
 
-Open <http://localhost:5173>, enter a title such as `E2E: nullable account name`, and submit this diff:
+打开 <http://localhost:5173>，标题可填 `E2E: nullable account name`，并提交以下 diff：
 
 ```diff
 diff --git a/src/Account.java b/src/Account.java
@@ -78,16 +111,26 @@ index 1234567..89abcde 100644
  }
 ```
 
-The task should move from queued to completed. The deterministic stub returns a `HIGH` `NULL_DEREFERENCE` finding at `src/Account.java:2`, which should appear under the review summary. This verifies the browser, API, PostgreSQL, outbox, RabbitMQ consumer, model adapter, and findings display without sending code to an external provider.
+任务应从“排队中”变为“已完成”，并在结果中显示 `src/Account.java:2` 的 `HIGH` 级别 `NULL_DEREFERENCE` 发现。这个演示覆盖浏览器、API、PostgreSQL、任务发件箱、RabbitMQ 消费者、模型适配器和前端结果展示，不会将代码发送给外部模型服务。
 
-With the same services running, `node tools/e2e/browser-smoke.mjs` launches a headless Chrome/Chromium browser, submits the fixture through the UI, and fails unless the completed finding appears. Set `CHROME_BIN` when the browser executable is not at the platform default path.
+上述服务运行期间，也可以执行浏览器冒烟测试：
 
-## Run checks
+```sh
+node tools/e2e/browser-smoke.mjs
+```
+
+该测试需要本地模型模拟器、后端、前端和 Chrome/Chromium；如果浏览器不在默认路径，请通过 `CHROME_BIN` 指定可执行文件。
+
+## 测试与检查
+
+后端测试：
 
 ```sh
 cd backend
 ./mvnw verify -Pintegration,prompt-eval
 ```
+
+前端测试与生产构建：
 
 ```sh
 cd frontend
@@ -96,18 +139,16 @@ npm test -- --run
 npm run build
 ```
 
-The browser E2E smoke test requires the local mock model, backend, frontend, and a Chrome/Chromium executable to be running as described above.
-
-Validate the Compose configuration with:
+Compose 配置检查：
 
 ```sh
 docker compose config
 ```
 
-The prompt evaluation profile replays deterministic offline fixtures. It does not measure a live model's quality. A credential-free real-model report can be generated with `./mvnw -Preal-model-eval verify` when you explicitly configure provider credentials.
+`prompt-eval` 配置会运行固定的离线样例，不用于衡量真实模型质量。如需生成真实模型评测报告，请显式配置模型服务密钥后运行 `./mvnw -Preal-model-eval verify`；该评测会调用外部模型服务。
 
-## Configuration and data
+## 配置与数据
 
-Compose reads optional local overrides from `.env`; `.env.example` lists database, broker, cache, port, concurrency, rate-limit, and model settings. Keep real API keys in the environment or an untracked `.env` file, never in source control.
+Compose 从可选的 `.env` 读取本地配置；`.env.example` 列出了数据库、消息队列、缓存、端口、并发、限流和模型相关配置。真实 API 密钥应放在环境变量或未跟踪的 `.env` 中。
 
-Review diffs are persisted in PostgreSQL while jobs are queued and processed. The OpenAI-compatible provider sends the review title, diff, and optional base/head refs to its configured endpoint. API errors and application logs omit raw model responses and credentials. The local model stub is test-only and returns a fixed fixture response.
+审查任务在排队与处理期间保存在 PostgreSQL。使用 OpenAI 兼容模型时，后端会把审查标题、diff 和可选的 base/head 分支信息发送到配置的服务地址。API 错误和应用日志不会记录原始模型响应或凭据。本地模型模拟器仅用于测试，并返回固定样例结果。
